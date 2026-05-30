@@ -2,7 +2,7 @@
 
 # 🧿 backtest-ollama-crontab
 
-> A **TypeScript monorepo** for [backtest-kit](https://github.com/tripolskypetr/backtest-kit) demonstrating how a local **Ollama LLM** (running `gpt-oss` quantized) can be wired into a trading-signal pipeline as an **outline-based risk filter**, with a **15-minute crontab** doing live Telegram-channel ingestion. The strategy parses signals from a public Telegram channel, asks the LLM whether each signal is safe to trade
+> A **TypeScript monorepo** for [backtest-kit](https://github.com/tripolskypetr/backtest-kit) demonstrating how a local **Ollama LLM** (running `gpt-oss` quantized) can be wired into a trading-signal pipeline as an **outline-based risk filter**, with a **15-minute crontab** doing live Telegram-channel ingestion. The strategy parses signals from any public Telegram channel, asks the LLM whether each signal is safe to trade
 
 ![screenshot](https://raw.githubusercontent.com/tripolskypetr/backtest-kit/HEAD/assets/screenshots/screenshot16.png)
 
@@ -39,7 +39,7 @@ A QR code prints in the terminal. Scan it with the Telegram app on your phone (S
 cp packages/main/session.txt content/jan_2026.strategy/session.txt
 ```
 
-The strategy reads this file at runtime to subscribe to `crypto_yoda_channel` without re-authenticating.
+The strategy reads this file at runtime to subscribe to the configured channel without re-authenticating.
 
 ### 4. Run the backtest
 
@@ -51,13 +51,13 @@ npm start -- --backtest --ui --entry ./content/jan_2026.strategy/jan_2026.strate
 
 ## 🎯 What this repo demonstrates
 
-A real-world experiment: take a free, public Telegram trading-signals channel ([Crypto Yoda](https://t.me/crypto_yoda_channel)), wire each signal through a **local Ollama LLM** (`gpt-oss` quantized) acting as a risk filter, and measure whether the LLM gate actually improves P&L on January 2026 historical data.
+A real-world experiment: take any free, public Telegram trading-signals channel, wire each signal through a **local Ollama LLM** (`gpt-oss` quantized) acting as a risk filter, and measure whether the LLM gate actually improves P&L on historical data.
 
 ### Pipeline
 
-1. **Telegram crawler** (`packages/core/src/lib/services/core/CrawlerService.ts`) — pulls raw messages from `crypto_yoda_channel`.
+1. **Telegram crawler** (`packages/core/src/lib/services/core/CrawlerService.ts`) — pulls raw messages from the configured channel.
 
-2. **Parser** (`packages/core/src/lib/services/screen/CryptoYodaScreenService.ts`) — extracts `direction`, `entry`, `targets`, `stoploss` from the Russian-language signal text into a `parser-items` Mongo collection.
+2. **Parser** (`packages/core/src/lib/services/screen/ChannelScreenService.ts`) — extracts `direction`, `entry`, `targets`, `stoploss` from signal text into a `parser-items` Mongo collection.
 
 3. **Risk outline** ([`packages/core/src/logic/outline/risk.outline.ts`](packages/core/src/logic/outline/risk.outline.ts)) — for every parsed signal, runs the LLM against 1m/15m candles + a pre-computed metrics packet (`avgRangePct`, `momentum24hPct`) and asks for a `riskAction: "skip" | "follow"` verdict.
 
@@ -171,7 +171,7 @@ The LLM correctly **vetoed 6 signals**, of which **4 were losers** (`TRX SHORT J
 | Layer | File | Responsibility |
 |---|---|---|
 | Crawl | `packages/core/src/lib/services/core/CrawlerService.ts` | Telegram `iterMessages` → `parser-items` upsert |
-| Parse | `packages/core/src/lib/services/screen/CryptoYodaScreenService.ts` | Regex extraction of `direction/entry/targets/stoploss` |
+| Parse | `packages/core/src/lib/services/screen/ChannelScreenService.ts` | Regex extraction of `direction/entry/targets/stoploss` |
 | Job | `packages/core/src/lib/services/job/SignalJobService.ts` | Subscribes to `signalJobSubject`, runs each unvisited row through `SignalLogicService` |
 | Outline | `packages/core/src/logic/outline/risk.outline.ts` | LLM prompt + `commitMetricsHistory` + zod-validated response |
 | Logic | `packages/core/src/lib/services/logic/SignalLogicService.ts` | Pure passthrough of LLM verdict to `screen-items` DTO |
@@ -195,7 +195,7 @@ The LLM correctly **vetoed 6 signals**, of which **4 were losers** (`TRX SHORT J
 |---|---|
 | **LLM gate** | Local Ollama (`gpt-oss` quantized) consulted per signal, returns `riskAction: "skip" \| "follow"` |
 | **Empirical rules** | Embedded in LLM system prompt (`avgRangePct < 0.07%` for SHORT; `momentum24hPct < -1%` for LONG) — tunable without recompiling `packages/` |
-| **Live ingestion** | 15-minute crontab via `Cron.register(.., interval: "15m")` polls `crypto_yoda_channel` |
+| **Live ingestion** | 15-minute crontab via `Cron.register(.., interval: "15m")` polls the configured channel |
 | **Backtest result** | January 2026: **+52.22% → +68.90%** with the LLM gate (Sharpe **+0.309 → +0.512**, winrate **68% → 82%**) |
 | **DI surface** | `globalThis.core` typed via root `tsconfig.json` paths → rolled-up `types.d.ts` |
 | **Strategy isolation** | Strategy files in `./content/` are loaded by `@backtest-kit/cli` at runtime, never bundled into `@pro/*` |
