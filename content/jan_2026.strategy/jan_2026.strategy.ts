@@ -91,7 +91,7 @@ listenError((error) => {
 
 Cron.register({
   name: "backtest-prepare-data",
-  handler: async (symbol, when, backtest) => {
+  handler: async ({ symbol, when, backtest }) => {
     if (!backtest) {
       return;
     }
@@ -102,7 +102,7 @@ Cron.register({
 
 Cron.register({
   name: "live-fetch-data",
-  handler: async (symbol, when, backtest) => {
+  handler: async ({ symbol, when, backtest }) => {
     if (backtest) {
       return;
     }
